@@ -7,10 +7,10 @@ Headquartered in Chicago, IL, DeCypher DataLabs LLC is a boutique business pract
 
 
 
-Contact: Leith Akkawi\ 
+Contact: Leith Akkawi  
 
-Email: leith.akkawi@decypherdatalabs.com\  
+Email: leith.akkawi@decypherdatalabs.com  
 
-Phone: (312) 316 - 2942\  
+Phone: (312) 316 - 2942  
 
-© 2019 - 2023
+
