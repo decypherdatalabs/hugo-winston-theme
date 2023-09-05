@@ -1,9 +1,9 @@
-#{
-#  "links": [
-#    {
-#      "name": "linkedin",
-#      "url": "https://www.linkedin.com/in/leith-akkawi/",
-#      "image": "images/social/linkedin.svg"
-#    },
-#  ]
-#}
+{
+  "links": [
+    {
+      "name": "linkedin",
+      "url": "https://www.linkedin.com",
+      "image": "images/social/linkedin.svg"
+    }
+  ]
+}
