@@ -1,6 +1,6 @@
 ---
-title: You don't start out writing good stuff
-description: The hallway smelt of boiled cabbage and old rag mats.
+title: DeCypher DataLabs LLC
+description: Scientific Research and Product Development in the field of Artificial Intelligence. 
 ---
 
-The hallway smelt of boiled cabbage and old rag mats. At one end of it a coloured poster, too large for indoor display, had been tacked to the wall. It depicted simply an enormous face, more than a metre wide: the face of a man of about forty-five, with a heavy black moustache and ruggedly handsome features. Winston made for the stairs. It was no use trying the lift. 
+Headquartered in Chicago, IL, DeCypher DataLabs LLC is a boutique business practice that specializes in all Artificial Intelligence matters for US government agencies, commercial enterprises, and non-profit organizations.  
