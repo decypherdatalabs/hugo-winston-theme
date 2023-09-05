@@ -3,7 +3,6 @@ languageCode = "en-us"
 theme = "hugo-winston-theme"
 themesDir = "themes"
 title = "Truth and Data Ethics"
-copyright = "Copyright 2019 - {currentYear}"
 paginate = 3
 pygmentsCodeFences = true
 pygmentsCodefencesGuessSyntax = true
