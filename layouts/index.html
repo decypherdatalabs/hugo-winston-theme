@@ -41,3 +41,1752 @@
 
 {{ define "footer_js" }}
 {{ end }}
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Obstruction Detection System — Proof of Concept Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0A0E1A; color: #F9FAFB; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }
+  
+  #canvas-container { width: 100vw; height: 100vh; position: relative; }
+  canvas { display: block; }
+
+  #hud {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+
+  #header {
+    position: absolute; top: 24px; left: 0; right: 0;
+    padding: 8px 24px; display: flex; justify-content: flex-end; align-items: flex-start;
+  }
+  #header h1 { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: 2px; }
+  #header h1 span { color: #DC2626; }
+
+  #unified-panel {
+    position: absolute; top: 70px; right: 20px; width: 220px;
+    background: rgba(26,35,50,0.92); border: 1px solid #2A3444;
+    border-radius: 4px; padding: 10px 12px; pointer-events: auto;
+  }
+  .stat-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(42,52,68,0.4); }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { font-size: 9px; color: #9CA3AF; }
+  .stat-value { font-size: 10px; color: #F9FAFB; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat-value.red { color: #EF4444; }
+  .stat-value.green { color: #10B981; }
+  .stat-value.amber { color: #F59E0B; }
+  .stat-value.blue { color: #60A5FA; }
+
+  .legend-item { display: inline-flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .legend-text { font-size: 8px; color: #9CA3AF; }
+
+  #detection-alert {
+    position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(220,38,38,0.15); border: 2px solid #DC2626;
+    border-radius: 8px; padding: 20px 40px; text-align: center;
+    display: none; animation: pulseAlert 0.5s ease-in-out infinite alternate;
+  }
+  #detection-alert h2 { font-size: 24px; color: #EF4444; font-weight: 800; letter-spacing: 3px; }
+  #detection-alert p { font-size: 13px; color: #FCA5A5; margin-top: 6px; }
+  @keyframes pulseAlert { from { border-color: #DC2626; } to { border-color: #EF4444; box-shadow: 0 0 30px rgba(220,38,38,0.3); } }
+
+  #intercept-alert {
+    position: absolute; top: 55%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(16,185,129,0.15); border: 2px solid #10B981;
+    border-radius: 8px; padding: 16px 32px; text-align: center;
+    display: none;
+  }
+  #intercept-alert h2 { font-size: 20px; color: #10B981; font-weight: 800; letter-spacing: 2px; }
+  #intercept-alert p { font-size: 12px; color: #6EE7B7; margin-top: 4px; }
+
+  #controls {
+    position: absolute; bottom: 20px; left: 20px; transform: none;
+    display: flex; gap: 12px; pointer-events: auto;
+  }
+  .btn {
+    background: rgba(26,35,50,0.92); border: 1px solid #2A3444;
+    color: #D1D5DB; padding: 10px 24px; border-radius: 4px; cursor: pointer;
+    font-size: 12px; font-weight: 600; letter-spacing: 1px; transition: all 0.2s;
+  }
+  .btn:hover { background: #2A3444; color: #fff; }
+  .btn.active { border-color: #DC2626; color: #EF4444; }
+  .btn.green { border-color: #10B981; color: #10B981; }
+  .btn.green:hover { background: rgba(16,185,129,0.15); }
+
+  #slider-area {
+    position: absolute; top: 70px; left: 20px; transform: none;
+    display: flex; flex-direction: column; gap: 4px; pointer-events: auto; width: 350px;
+  }
+  .slider-row { display: flex; align-items: center; gap: 8px; height: 22px; }
+  .slider-row label { font-size: 10px; color: #9CA3AF; white-space: nowrap; min-width: 70px; text-align: right; }
+  .slider-row input[type=range] { flex: 1; accent-color: #DC2626; height: 4px; }
+  .slider-row input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; }
+  .slider-row input[type=range]::-moz-range-track { height: 3px; border-radius: 2px; }
+  .slider-row input[type=range]::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -5px; }
+  .slider-row input[type=range]::-moz-range-thumb { width: 12px; height: 12px; }
+  .slider-row .val-label { font-size: 10px; color: #D1D5DB; min-width: 65px; font-variant-numeric: tabular-nums; }
+  .slider-row.alt input[type=range] { accent-color: #3B82F6; }
+  .slider-row.fmt input[type=range] { accent-color: #8B5CF6; }
+  .slider-row.threat input[type=range] { accent-color: #EF4444; }
+
+  .gps-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+  .gps-row label { font-size: 10px; color: #9CA3AF; letter-spacing: 1px; min-width: 30px; }
+  .gps-row input[type=text] {
+    flex: 1; background: rgba(15,20,30,0.9); border: 1px solid #2A3444; border-radius: 3px;
+    color: #F9FAFB; font-size: 11px; padding: 3px 6px; font-family: 'Courier New', monospace;
+  }
+  .gps-row button {
+    background: #10B981; color: #000; border: none; border-radius: 3px;
+    font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 4px 8px; cursor: pointer;
+  }
+  .gps-row button:hover { background: #34D399; }
+
+  #world-map-container {
+    position: absolute; bottom: 20px; right: 20px; pointer-events: auto;
+    background: rgba(26,35,50,0.95); border: 1px solid #2A3444; border-radius: 4px;
+    overflow: hidden; cursor: pointer; transition: all 0.3s ease;
+  }
+  #world-map-container.collapsed { width: 200px; height: 110px; }
+  #world-map-container.expanded { 
+    width: calc(100vw - 40px); height: calc(100vh - 40px); 
+    top: 20px; left: 20px; right: 20px; bottom: 20px;
+    z-index: 1000;
+  }
+  #world-map-container canvas { width: 100%; height: 100%; display: block; }
+  #map-label {
+    position: absolute; top: 4px; left: 8px; font-size: 8px; color: #9CA3AF;
+    letter-spacing: 1px; pointer-events: none;
+  }
+  #map-close {
+    position: absolute; top: 10px; right: 10px; font-size: 16px; font-weight: 700; color: #FFFFFF;
+    background: rgba(0,0,0,0.85); padding: 6px 14px; border-radius: 4px; border: 1px solid #555;
+    cursor: pointer; display: none; pointer-events: auto; letter-spacing: 1px; z-index: 10;
+  }
+  #map-close:hover { background: rgba(220,38,38,0.8); }
+  #map-pin {
+    position: absolute; width: 10px; height: 10px; background: #DC2626;
+    border: 2px solid #FFF; border-radius: 50%; transform: translate(-50%, -50%);
+    pointer-events: none; display: none; box-shadow: 0 0 6px rgba(220,38,38,0.8);
+  }
+  #map-crosshair {
+    position: absolute; pointer-events: none; display: none;
+  }
+  #map-crosshair .ch-h, #map-crosshair .ch-v {
+    position: absolute; background: rgba(0,255,255,0.3);
+  }
+  #map-crosshair .ch-h { width: 100%; height: 1px; top: 50%; left: 0; }
+  #map-crosshair .ch-v { height: 100%; width: 1px; left: 50%; top: 0; }
+  #map-coords {
+    position: absolute; bottom: 4px; left: 8px; font-size: 9px; color: #00FFFF;
+    font-family: 'Courier New', monospace; pointer-events: none;
+  }
+  #map-zoom-controls {
+    position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+    display: none; flex-direction: column; align-items: center; gap: 4px;
+  }
+  #map-zoom-controls button {
+    width: 32px; height: 32px; background: rgba(26,35,50,0.9); border: 1px solid #2A3444;
+    border-radius: 4px; color: #F9FAFB; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #map-zoom-controls button:hover { background: rgba(59,130,246,0.4); }
+  #map-zoom-level { font-size: 9px; color: #9CA3AF; letter-spacing: 1px; }
+  #inventor-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    background: rgba(10,15,25,0.95); border-bottom: 1px solid #2A3444;
+    padding: 8px 16px; text-align: center;
+    font-family: 'Courier New', monospace;
+  }
+  #inventor-title {
+    font-size: 14px; font-weight: 800; color: #FFFFFF; letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 4px;
+  }
+  #inventor-details {
+    font-size: 11px; color: #9CA3AF; letter-spacing: 0.5px; line-height: 1.5;
+  }
+  #inventor-details span { color: #F9FAFB; }
+  #inventor-copyright {
+    font-size: 10px; color: #9CA3AF; margin-top: 3px; letter-spacing: 0.3px;
+  }
+  #inventor-bar span { color: #D1D5DB; }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+<div id="hud">
+  <div id="header">
+    <div></div>
+  </div>
+
+  <div id="inventor-bar">
+    <div id="inventor-title">Defense System for Intercepting Stealth Aircrafts, Drones and Missiles</div>
+    <div id="inventor-details">
+      Inventor: <span>Leith Akkawi, DeCypher DataLabs LLC</span> &nbsp;|&nbsp; CAGE: <span>8DXN5</span> &nbsp;|&nbsp; UEI: <span>DKKNYE41ZB47</span> &nbsp;|&nbsp;
+      Technical Advisor: <span>Mark Brown, Polybolos Institute</span> &nbsp;|&nbsp;
+      <span style="color:#F59E0B">Patent Pending 19/541,293</span>
+    </div>
+    <div id="inventor-copyright">Copyright © 2026 DeCypher DataLabs LLC. All rights reserved. Unauthorized reproduction, distribution, or use of this simulation, its graphics, code, and related materials is strictly prohibited.</div>
+  </div>
+
+  <div id="unified-panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #2A3444; padding-bottom:6px">
+      <div>
+        <div style="font-size:9px;color:#9CA3AF;letter-spacing:1px">PHASE</div>
+        <div id="phase-name" style="font-size:14px;font-weight:700;color:#3B82F6">STANDBY</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:9px;color:#9CA3AF;letter-spacing:1px">ELAPSED</div>
+        <div style="font-size:13px;color:#F9FAFB;font-variant-numeric:tabular-nums">T+ <span id="sim-time">00:00.0</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:4px 12px;margin-bottom:8px;border-bottom:1px solid #2A3444;padding-bottom:6px">
+      <div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div><div class="legend-text">DRONES</div></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div><div class="legend-text">SIGNAL</div></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EF4444"></div><div class="legend-text">BLOCKED</div></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#DC2626"></div><div class="legend-text">TARGET</div></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div><div class="legend-text">INTERCEPT</div></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#F59E0B;border-radius:2px"></div><div class="legend-text">ASSET</div></div>
+    </div>
+
+    <div class="stat-row"><span class="stat-label">Network Drones</span><span class="stat-value" id="s-drones">1,001</span></div>
+    <div class="stat-row"><span class="stat-label">Signal Paths</span><span class="stat-value" id="s-paths">1,000,000</span></div>
+    <div class="stat-row"><span class="stat-label">Radius</span><span class="stat-value" id="s-radius">4.0 mi</span></div>
+    <div class="stat-row"><span class="stat-label">Location</span><span class="stat-value" style="font-size:9px" id="s-location">WHITE SANDS, NM</span></div>
+    <div class="stat-row"><span class="stat-label">Alt Range</span><span class="stat-value blue" id="s-altlow">100 ft</span>—<span class="stat-value blue" id="s-althigh">5,000 ft</span></div>
+    <div class="stat-row"><span class="stat-label">Obstructed</span><span class="stat-value red" id="s-broken">0</span></div>
+    <div class="stat-row"><span class="stat-label">Detection</span><span class="stat-value green" id="s-detect">CLEAR</span></div>
+    <div class="stat-row"><span class="stat-label">Intruders</span><span class="stat-value red" id="s-intruders">0 / 0</span></div>
+    <div class="stat-row"><span class="stat-label">Adv Speed</span><span class="stat-value" id="s-speed">— mph</span></div>
+    <div class="stat-row"><span class="stat-label">Adv Alt</span><span class="stat-value blue" id="s-advalt">—</span></div>
+    <div class="stat-row"><span class="stat-label">1st Detect</span><span class="stat-value amber" id="s-ttd">—</span></div>
+    <div class="stat-row"><span class="stat-label">Kills</span><span class="stat-value green" id="s-tti">0</span></div>
+    <div class="stat-row"><span class="stat-label">Interceptors</span><span class="stat-value" id="s-intercept">0</span></div>
+
+    <select id="city-select" style="width:100%;margin-top:8px;border-top:1px solid #2A3444;padding:4px 6px;background:rgba(15,20,30,0.9);border:1px solid #2A3444;border-radius:3px;color:#F9FAFB;font-size:10px;font-family:'Courier New',monospace;cursor:pointer">
+      <option value="">— SELECT CITY TO ZOOM —</option>
+      <optgroup label="NORTH AMERICA">
+        <option value="38.8719,-77.0563">Washington DC (Pentagon)</option>
+        <option value="40.7128,-74.0060">New York City</option>
+        <option value="41.8781,-87.6298">Chicago</option>
+        <option value="34.0522,-118.2437">Los Angeles</option>
+        <option value="29.7604,-95.3698">Houston</option>
+        <option value="25.7617,-80.1918">Miami</option>
+        <option value="47.6062,-122.3321">Seattle</option>
+        <option value="37.7749,-122.4194">San Francisco</option>
+        <option value="32.7157,-117.1611">San Diego (Naval Base)</option>
+        <option value="19.4326,-99.1332">Mexico City</option>
+        <option value="45.5017,-73.5673">Montreal</option>
+      </optgroup>
+      <optgroup label="MILITARY / STRATEGIC">
+        <option value="32.3835,-106.4784">White Sands Missile Range</option>
+        <option value="36.2361,-115.0511">Nellis AFB / Area 51</option>
+        <option value="28.3922,-80.6077">Cape Canaveral</option>
+        <option value="36.9489,174.7620">Norfolk Naval Station</option>
+        <option value="24.5551,54.6816">Al Dhafra Air Base, UAE</option>
+        <option value="25.2854,51.5310">Al Udeid Air Base, Qatar</option>
+        <option value="36.7783,-119.4179">Edwards AFB</option>
+        <option value="64.2903,-149.1268">Fort Wainwright, Alaska</option>
+        <option value="21.3525,-157.9394">Pearl Harbor, Hawaii</option>
+      </optgroup>
+      <optgroup label="EUROPE">
+        <option value="51.5074,-0.1278">London</option>
+        <option value="48.8566,2.3522">Paris</option>
+        <option value="52.5200,13.4050">Berlin</option>
+        <option value="41.9028,12.4964">Rome</option>
+        <option value="55.7558,37.6173">Moscow</option>
+        <option value="59.3293,18.0686">Stockholm</option>
+        <option value="50.4501,30.5234">Kyiv</option>
+        <option value="52.2297,21.0122">Warsaw</option>
+      </optgroup>
+      <optgroup label="MIDDLE EAST">
+        <option value="33.8938,35.5018">Beirut</option>
+        <option value="31.9454,35.9284">Amman, Jordan</option>
+        <option value="31.7683,35.2137">Jerusalem</option>
+        <option value="32.0853,34.7818">Tel Aviv</option>
+        <option value="33.3152,44.3661">Baghdad</option>
+        <option value="24.7136,46.6753">Riyadh</option>
+        <option value="35.6892,51.3890">Tehran</option>
+        <option value="36.2021,37.1343">Aleppo</option>
+      </optgroup>
+      <optgroup label="ASIA-PACIFIC">
+        <option value="35.6762,139.6503">Tokyo</option>
+        <option value="39.9042,116.4074">Beijing</option>
+        <option value="31.2304,121.4737">Shanghai</option>
+        <option value="37.5665,126.9780">Seoul</option>
+        <option value="25.0330,121.5654">Taipei</option>
+        <option value="1.3521,103.8198">Singapore</option>
+        <option value="28.6139,77.2090">New Delhi</option>
+        <option value="22.3193,114.1694">Hong Kong</option>
+        <option value="14.5995,120.9842">Manila</option>
+      </optgroup>
+      <optgroup label="SOUTH AMERICA / AFRICA">
+        <option value="-22.9068,-43.1729">Rio de Janeiro</option>
+        <option value="-34.6037,-58.3816">Buenos Aires</option>
+        <option value="-33.9249,18.4241">Cape Town</option>
+        <option value="30.0444,31.2357">Cairo</option>
+        <option value="6.5244,3.3792">Lagos</option>
+        <option value="-1.2921,36.8219">Nairobi</option>
+      </optgroup>
+      <optgroup label="MARITIME / STRAIT">
+        <option value="1.2655,103.8200">Strait of Malacca</option>
+        <option value="12.1150,43.1450">Bab el-Mandeb Strait</option>
+        <option value="26.0667,56.2500">Strait of Hormuz</option>
+        <option value="24.4500,118.4000">Taiwan Strait</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <div id="detection-alert">
+    <h2>⚠ INTRUSION DETECTED</h2>
+    <p>Signal obstruction confirmed — triangulating position</p>
+  </div>
+
+  <div id="intercept-alert">
+    <h2>✓ ALL TARGETS NEUTRALIZED</h2>
+    <p>Interceptor drones neutralized all adversarial UAS</p>
+  </div>
+
+  <div id="slider-area">
+    <div class="gps-row">
+      <label>LAT</label>
+      <input type="text" id="gps-lat" value="32.3835">
+      <label>LON</label>
+      <input type="text" id="gps-lon" value="-106.4784">
+      <button id="btn-gps">LOAD MAP</button>
+    </div>
+    <div class="slider-row">
+      <label>SIM SPEED</label>
+      <input type="range" id="speed-slider" min="0.25" max="3" step="0.25" value="1">
+      <span class="val-label" id="speed-label">1.0x</span>
+    </div>
+    <div class="slider-row">
+      <label>MAP DARK</label>
+      <input type="range" id="map-dark-slider" min="0" max="100" step="1" value="50">
+      <span class="val-label" id="map-dark-label">50%</span>
+    </div>
+    <div class="slider-row threat">
+      <label>INTRUDERS</label>
+      <input type="range" id="intruder-count-slider" min="1" max="100" step="1" value="1">
+      <span class="val-label" id="intruder-count-label">1</span>
+    </div>
+    <div class="slider-row">
+      <label>TARGET MPH</label>
+      <input type="range" id="adversary-speed-slider" min="50" max="720" step="10" value="90">
+      <span class="val-label" id="adv-speed-label">90 mph</span>
+    </div>
+    <div class="slider-row">
+      <label>DRONE MPH</label>
+      <input type="range" id="drone-speed-slider" min="10" max="250" step="5" value="120">
+      <span class="val-label" id="drone-speed-label">120 mph</span>
+    </div>
+    <div class="slider-row alt">
+      <label>LOW ALT (ft)</label>
+      <input type="range" id="alt-low-slider" min="50" max="2000" step="50" value="100">
+      <span class="val-label" id="alt-low-label">100 ft</span>
+    </div>
+    <div class="slider-row alt">
+      <label>HIGH ALT (ft)</label>
+      <input type="range" id="alt-high-slider" min="500" max="20000" step="100" value="5000">
+      <span class="val-label" id="alt-high-label">5,000 ft</span>
+    </div>
+    <div class="slider-row fmt">
+      <label>FORMATION</label>
+      <input type="range" id="formation-slider" min="0" max="100" step="1" value="0">
+      <span class="val-label" id="formation-label">RANDOM</span>
+    </div>
+    <div class="slider-row fmt">
+      <label>BASE WIDTH</label>
+      <input type="range" id="base-width-slider" min="5" max="100" step="1" value="20">
+      <span class="val-label" id="base-width-label">20%</span>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button class="btn green" id="btn-start">▶ LAUNCH SIM</button>
+    <button class="btn" id="btn-reset">↺ RESET</button>
+    <button class="btn" id="btn-view">◉ MAP VIEW</button>
+  </div>
+
+  <div id="world-map-container" class="collapsed">
+    <canvas id="world-map-canvas"></canvas>
+    <span id="map-label">▸ CLICK TO SELECT LOCATION</span>
+    <span id="map-close">✕ CLOSE</span>
+    <div id="map-pin"></div>
+    <div id="map-crosshair"><div class="ch-h"></div><div class="ch-v"></div></div>
+    <span id="map-coords"></span>
+    <div id="map-zoom-controls">
+      <button id="map-zoom-in">+</button>
+      <span id="map-zoom-level">Z2</span>
+      <button id="map-zoom-out">−</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============================================================
+// SIGNAL OBSTRUCTION DETECTION SYSTEM - POC SIMULATION
+// Cylindrical Defense Column — Orbiting Protected Asset
+// Based on Akkawi Patent (Pending)
+// Built for Polybolos Institute
+// ============================================================
+
+const DRONE_COUNT = 1001;
+const CYLINDER_RADIUS = 500; // visual units (represents 4 miles)
+const BASE_ADVERSARY_SPEED = 1.2;
+const DETECTION_THRESHOLD = 1;
+const SIGNAL_CHECK_RADIUS = 18;
+const NEARBY_DISPLAY_RADIUS = 120;
+
+// Altitude in feet (mapped to visual units)
+let altLow = 100;
+let altHigh = 5000;
+let adversaryMph = 90;
+let droneSpeedMph = 120;
+let formationBlend = 0;
+let spiralBaseWidth = 0.2; // 0.05 to 1.0 of cylinder radius
+
+// Visual scale: map altitude range to visual Y units
+const VIS_HEIGHT_MAX = 400; // visual height at max altitude (20,000 ft)
+const ALT_ABSOLUTE_MAX = 20000; // max possible altitude in feet
+function altToVisY(altFt) {
+  return (altFt / ALT_ABSOLUTE_MAX) * VIS_HEIGHT_MAX;
+}
+function visYToAlt(vy) {
+  return (vy / VIS_HEIGHT_MAX) * ALT_ABSOLUTE_MAX;
+}
+
+let scene, camera, renderer, clock;
+let droneMeshes = [];
+let droneOrbitRadius = [];
+let droneOrbitSpeed = [];
+let droneOrbitAngle = [];
+let droneAltitude = []; // in feet
+let dronePositions = [];
+
+let adversaries = []; // array of {mesh, dir, detected, interceptor, interceptorMesh, neutralized}
+let intruderCount = 1;
+
+let signalLinesGroup = null;
+let brokenLinesGroup = null;
+let triangulationMarker = null;
+let trailGroup = null;
+let protectedAsset = null;
+let cylinderWireframe = null;
+let groundPlane = null;
+
+// State
+let simRunning = false;
+let simTime = 0;
+let simSpeed = 1;
+let phase = 'standby';
+let firstDetectionTime = null;
+
+let brokenPathCount = 0;
+let viewMode = 0;
+let cameraAngle = 0;
+let detectedPosition = new THREE.Vector3();
+
+// DOM refs
+const phaseNameEl = document.getElementById('phase-name');
+const simTimeEl = document.getElementById('sim-time');
+const sBroken = document.getElementById('s-broken');
+const sDetect = document.getElementById('s-detect');
+const sSpeed = document.getElementById('s-speed');
+const sAdvAlt = document.getElementById('s-advalt');
+const sAltLow = document.getElementById('s-altlow');
+const sAltHigh = document.getElementById('s-althigh');
+const sTtd = document.getElementById('s-ttd');
+const sTti = document.getElementById('s-tti');
+const sIntercept = document.getElementById('s-intercept');
+const detectionAlert = document.getElementById('detection-alert');
+const interceptAlert = document.getElementById('intercept-alert');
+const btnStart = document.getElementById('btn-start');
+const btnReset = document.getElementById('btn-reset');
+const btnView = document.getElementById('btn-view');
+const speedSlider = document.getElementById('speed-slider');
+const speedLabel = document.getElementById('speed-label');
+const advSpeedSlider = document.getElementById('adversary-speed-slider');
+const advSpeedLabel = document.getElementById('adv-speed-label');
+const altLowSlider = document.getElementById('alt-low-slider');
+const altLowLabel = document.getElementById('alt-low-label');
+const altHighSlider = document.getElementById('alt-high-slider');
+const altHighLabel = document.getElementById('alt-high-label');
+const formationSlider = document.getElementById('formation-slider');
+const formationLabel = document.getElementById('formation-label');
+const baseWidthSlider = document.getElementById('base-width-slider');
+const baseWidthLabel = document.getElementById('base-width-label');
+const intruderCountSlider = document.getElementById('intruder-count-slider');
+const intruderCountLabel = document.getElementById('intruder-count-label');
+
+function init() {
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0A0E1A, 0.0004);
+
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+  camera.position.set(0, 300, 900);
+  camera.lookAt(-80, altToVisY((altLow + altHigh) / 2), 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x0A0E1A);
+  document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+  clock = new THREE.Clock();
+
+  scene.add(new THREE.AmbientLight(0x334455, 0.8));
+  const dirLight = new THREE.DirectionalLight(0x6688AA, 0.6);
+  dirLight.position.set(50, 150, 50);
+  scene.add(dirLight);
+
+  // ESRI World Imagery satellite ground plane
+  const EARTH_VIS_RADIUS = 8000;
+  const earthSegments = 80;
+  const earthSpread = 1100;
+  const earthGeo = new THREE.BufferGeometry();
+  const earthVerts = [];
+  const earthIndices = [];
+  const earthUVs = [];
+
+  for (let iy = 0; iy <= earthSegments; iy++) {
+    for (let ix = 0; ix <= earthSegments; ix++) {
+      const u = ix / earthSegments;
+      const v = iy / earthSegments;
+      const x = (u - 0.5) * earthSpread * 2;
+      const z = (v - 0.5) * earthSpread * 2;
+      const dist = Math.sqrt(x * x + z * z);
+      const y = dist < EARTH_VIS_RADIUS
+        ? -EARTH_VIS_RADIUS + Math.sqrt(EARTH_VIS_RADIUS * EARTH_VIS_RADIUS - dist * dist)
+        : -EARTH_VIS_RADIUS + Math.sqrt(EARTH_VIS_RADIUS * EARTH_VIS_RADIUS - EARTH_VIS_RADIUS * EARTH_VIS_RADIUS * 0.99);
+      earthVerts.push(x, y - 2, z);
+      earthUVs.push(u, 1 - v);
+    }
+  }
+  for (let iy = 0; iy < earthSegments; iy++) {
+    for (let ix = 0; ix < earthSegments; ix++) {
+      const a = iy * (earthSegments + 1) + ix;
+      const b = a + 1;
+      const c = a + (earthSegments + 1);
+      const d = c + 1;
+      earthIndices.push(a, c, b, b, c, d);
+    }
+  }
+  earthGeo.setAttribute('position', new THREE.Float32BufferAttribute(earthVerts, 3));
+  earthGeo.setAttribute('uv', new THREE.Float32BufferAttribute(earthUVs, 2));
+  earthGeo.setIndex(earthIndices);
+  earthGeo.computeVertexNormals();
+
+  const tileCanvas = document.createElement('canvas');
+  const tileSize = 256;
+  const TILES_ACROSS = 8;
+  tileCanvas.width = TILES_ACROSS * tileSize;
+  tileCanvas.height = TILES_ACROSS * tileSize;
+  const tileCtx = tileCanvas.getContext('2d');
+  tileCtx.fillStyle = '#0F1A12';
+  tileCtx.fillRect(0, 0, tileCanvas.width, tileCanvas.height);
+
+  const satTexture = new THREE.CanvasTexture(tileCanvas);
+  satTexture.minFilter = THREE.LinearFilter;
+  satTexture.magFilter = THREE.LinearFilter;
+
+  const earthMat = new THREE.MeshBasicMaterial({ map: satTexture, side: THREE.DoubleSide });
+  groundPlane = new THREE.Mesh(earthGeo, earthMat);
+  scene.add(groundPlane);
+
+  // Tile loading function — callable any time
+  function lon2tile(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
+  function lat2tile(lat, z) { return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, z)); }
+
+  function loadSatelliteTiles(lat, lon) {
+    const ZOOM = 13;
+    const centerTileX = lon2tile(lon, ZOOM);
+    const centerTileY = lat2tile(lat, ZOOM);
+    const halfTiles = Math.floor(TILES_ACROSS / 2);
+    const startTileX = centerTileX - halfTiles;
+    const startTileY = centerTileY - halfTiles;
+
+    // Clear canvas
+    tileCtx.fillStyle = '#0F1A12';
+    tileCtx.fillRect(0, 0, tileCanvas.width, tileCanvas.height);
+    satTexture.needsUpdate = true;
+
+    for (let ty = 0; ty < TILES_ACROSS; ty++) {
+      for (let tx = 0; tx < TILES_ACROSS; tx++) {
+        const tileX = startTileX + tx;
+        const tileY = startTileY + ty;
+        const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${ZOOM}/${tileY}/${tileX}`;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          tileCtx.drawImage(img, tx * tileSize, ty * tileSize, tileSize, tileSize);
+          satTexture.needsUpdate = true;
+        };
+        img.src = url;
+      }
+    }
+  }
+
+  // Initial load — White Sands
+  loadSatelliteTiles(32.3835, -106.4784);
+  document.getElementById('gps-lat').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-gps').click(); });
+  document.getElementById('gps-lon').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-gps').click(); });
+  document.getElementById('map-dark-slider').addEventListener('input', (e) => {
+    const darkness = parseInt(e.target.value) / 100;
+    document.getElementById('map-dark-label').textContent = e.target.value + '%';
+    // Darken by blending material color toward black
+    const brightness = 1 - darkness;
+    groundPlane.material.color.setRGB(brightness, brightness, brightness);
+  });
+  // Apply default 50% darkness
+  groundPlane.material.color.setRGB(0.5, 0.5, 0.5);
+
+  // ---- WORLD MAP LOCATION PICKER ----
+  const mapContainer = document.getElementById('world-map-container');
+  const mapCanvas = document.getElementById('world-map-canvas');
+  const mapPin = document.getElementById('map-pin');
+  const mapLabel = document.getElementById('map-label');
+  const mapCloseBtn = document.getElementById('map-close');
+  const mapCrosshair = document.getElementById('map-crosshair');
+  const mapCoordsEl = document.getElementById('map-coords');
+  const mapZoomControls = document.getElementById('map-zoom-controls');
+  const mapZoomLevelEl = document.getElementById('map-zoom-level');
+  let mapExpanded = false;
+
+  // Zoomable map state
+  let mapZoom = 2;
+  let mapCenterLat = 20; // start slightly north of equator
+  let mapCenterLon = 0;
+  const MAP_TILE_SIZE = 256;
+  const CANVAS_SIZE = 2048;
+  mapCanvas.width = CANVAS_SIZE;
+  mapCanvas.height = CANVAS_SIZE;
+  const mapCtx = mapCanvas.getContext('2d');
+
+  // Mercator helpers
+  function lat2mercY(lat, zoom) {
+    const n = Math.pow(2, zoom);
+    return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n * MAP_TILE_SIZE;
+  }
+  function lon2mercX(lon, zoom) {
+    return (lon + 180) / 360 * Math.pow(2, zoom) * MAP_TILE_SIZE;
+  }
+  function mercY2lat(y, zoom) {
+    const n = Math.PI - 2 * Math.PI * y / (Math.pow(2, zoom) * MAP_TILE_SIZE);
+    return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  }
+  function mercX2lon(x, zoom) {
+    return x / (Math.pow(2, zoom) * MAP_TILE_SIZE) * 360 - 180;
+  }
+
+  function renderMapTiles() {
+    mapCtx.fillStyle = '#0A1628';
+    mapCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+    const worldPxW = Math.pow(2, mapZoom) * MAP_TILE_SIZE;
+    const worldPxH = worldPxW;
+
+    // Clamp canvas to never exceed world width (no duplication)
+    const viewW = Math.min(CANVAS_SIZE, worldPxW);
+    const viewH = Math.min(CANVAS_SIZE, worldPxH);
+
+    const centerPxX = lon2mercX(mapCenterLon, mapZoom);
+    const centerPxY = lat2mercY(mapCenterLat, mapZoom);
+
+    // Lat limits: ~75°N to ~-60°S
+    const minY = lat2mercY(75, mapZoom);
+    const maxY = lat2mercY(-60, mapZoom);
+    const clampedCenterY = Math.max(minY + viewH / 2, Math.min(maxY - viewH / 2, centerPxY));
+
+    const startPxX = centerPxX - viewW / 2;
+    const startPxY = clampedCenterY - viewH / 2;
+
+    // Offset to center the view area on canvas if view < canvas
+    const offsetX = (CANVAS_SIZE - viewW) / 2;
+    const offsetY = (CANVAS_SIZE - viewH) / 2;
+
+    const startTileX = Math.floor(startPxX / MAP_TILE_SIZE);
+    const startTileY = Math.floor(startPxY / MAP_TILE_SIZE);
+    const endTileX = Math.ceil((startPxX + viewW) / MAP_TILE_SIZE);
+    const endTileY = Math.ceil((startPxY + viewH) / MAP_TILE_SIZE);
+
+    const maxTile = Math.pow(2, mapZoom);
+    const maxTileY = Math.ceil(maxY / MAP_TILE_SIZE);
+
+    // Bounds cover function (above 75°N and below -60°S)
+    const arcticY = lat2mercY(75, mapZoom);
+    const arcDrawY = offsetY + arcticY - (clampedCenterY - viewH / 2);
+    const antarcticaY = lat2mercY(-60, mapZoom);
+    const antDrawY = offsetY + antarcticaY - (clampedCenterY - viewH / 2);
+    const coverBounds = () => {
+      mapCtx.fillStyle = '#0A1628';
+      if (arcDrawY > 0) mapCtx.fillRect(0, 0, CANVAS_SIZE, arcDrawY);
+      if (antDrawY < CANVAS_SIZE) mapCtx.fillRect(0, antDrawY, CANVAS_SIZE, CANVAS_SIZE - antDrawY);
+    };
+
+    for (let ty = startTileY; ty <= endTileY; ty++) {
+      if (ty < 0 || ty >= maxTile || ty > maxTileY) continue;
+      for (let tx = startTileX; tx <= endTileX; tx++) {
+        const wrappedTx = ((tx % maxTile) + maxTile) % maxTile;
+
+        const drawX = offsetX + tx * MAP_TILE_SIZE - startPxX;
+        const drawY = offsetY + ty * MAP_TILE_SIZE - startPxY;
+
+        const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${mapZoom}/${ty}/${wrappedTx}`;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = ((dx, dy) => () => {
+          mapCtx.drawImage(img, dx, dy, MAP_TILE_SIZE, MAP_TILE_SIZE);
+          coverBounds();
+        })(drawX, drawY);
+        img.src = url;
+      }
+    }
+
+    mapZoomLevelEl.textContent = 'Z' + mapZoom;
+    coverBounds();
+  }
+
+  // Convert canvas pixel to lat/lon based on current view
+  function canvasPixelToLatLon(px, py, containerW, containerH) {
+    const worldPxW = Math.pow(2, mapZoom) * MAP_TILE_SIZE;
+    const viewW = Math.min(CANVAS_SIZE, worldPxW);
+    const viewH = Math.min(CANVAS_SIZE, worldPxW);
+    const offsetX = (CANVAS_SIZE - viewW) / 2;
+    const offsetY = (CANVAS_SIZE - viewH) / 2;
+
+    const canvasX = px / containerW * CANVAS_SIZE;
+    const canvasY = py / containerH * CANVAS_SIZE;
+
+    const centerPxX = lon2mercX(mapCenterLon, mapZoom);
+    const centerPxY = lat2mercY(mapCenterLat, mapZoom);
+    const minY = lat2mercY(75, mapZoom);
+    const maxY = lat2mercY(-60, mapZoom);
+    const clampedCenterY = Math.max(minY + viewH / 2, Math.min(maxY - viewH / 2, centerPxY));
+
+    const mercX = centerPxX - viewW / 2 + (canvasX - offsetX);
+    const mercY = clampedCenterY - viewH / 2 + (canvasY - offsetY);
+
+    return { lat: mercY2lat(mercY, mapZoom), lon: mercX2lon(mercX, mapZoom) };
+  }
+
+  function latLonToCanvasPixel(lat, lon, containerW, containerH) {
+    const worldPxW = Math.pow(2, mapZoom) * MAP_TILE_SIZE;
+    const viewW = Math.min(CANVAS_SIZE, worldPxW);
+    const viewH = Math.min(CANVAS_SIZE, worldPxW);
+    const offsetX = (CANVAS_SIZE - viewW) / 2;
+    const offsetY = (CANVAS_SIZE - viewH) / 2;
+
+    const centerPxX = lon2mercX(mapCenterLon, mapZoom);
+    const centerPxY = lat2mercY(mapCenterLat, mapZoom);
+    const minY = lat2mercY(75, mapZoom);
+    const maxY = lat2mercY(-60, mapZoom);
+    const clampedCenterY = Math.max(minY + viewH / 2, Math.min(maxY - viewH / 2, centerPxY));
+
+    const targetPxX = lon2mercX(lon, mapZoom);
+    const targetPxY = lat2mercY(lat, mapZoom);
+    const canvasX = offsetX + targetPxX - (centerPxX - viewW / 2);
+    const canvasY = offsetY + targetPxY - (clampedCenterY - viewH / 2);
+    return { px: canvasX / CANVAS_SIZE * containerW, py: canvasY / CANVAS_SIZE * containerH };
+  }
+
+  function updateMapPin(lat, lon) {
+    const rect = mapContainer.getBoundingClientRect();
+    const pos = latLonToCanvasPixel(lat, lon, rect.width, rect.height);
+    mapPin.style.left = pos.px + 'px';
+    mapPin.style.top = pos.py + 'px';
+    mapPin.style.display = (pos.px > 0 && pos.px < rect.width && pos.py > 0 && pos.py < rect.height) ? 'block' : 'none';
+  }
+
+  // Initial render
+  renderMapTiles();
+
+  // Zoom functions
+  function mapZoomIn(focusLat, focusLon) {
+    if (mapZoom >= 18) return;
+    mapZoom++;
+    if (focusLat !== undefined) { mapCenterLat = focusLat; mapCenterLon = focusLon; }
+    renderMapTiles();
+    const lat = parseFloat(document.getElementById('gps-lat').value);
+    const lon = parseFloat(document.getElementById('gps-lon').value);
+    if (!isNaN(lat) && !isNaN(lon)) setTimeout(() => updateMapPin(lat, lon), 300);
+  }
+  function mapZoomOut() {
+    if (mapZoom <= 2) return;
+    mapZoom--;
+    renderMapTiles();
+    const lat = parseFloat(document.getElementById('gps-lat').value);
+    const lon = parseFloat(document.getElementById('gps-lon').value);
+    if (!isNaN(lat) && !isNaN(lon)) setTimeout(() => updateMapPin(lat, lon), 300);
+  }
+
+  // Zoom buttons
+  document.getElementById('map-zoom-in').addEventListener('click', (e) => { e.stopPropagation(); mapZoomIn(); });
+  document.getElementById('map-zoom-out').addEventListener('click', (e) => { e.stopPropagation(); mapZoomOut(); });
+
+  // Scroll wheel zoom
+  mapContainer.addEventListener('wheel', (e) => {
+    if (!mapExpanded) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = mapContainer.getBoundingClientRect();
+    const coords = canvasPixelToLatLon(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+    if (e.deltaY < 0) mapZoomIn(coords.lat, coords.lon);
+    else mapZoomOut();
+  }, { passive: false });
+
+  // Drag to pan
+  let mapDragging = false;
+  let mapDragStart = { x: 0, y: 0 };
+  let mapDragCenterStart = { lat: 0, lon: 0 };
+
+  mapContainer.addEventListener('mousedown', (e) => {
+    if (!mapExpanded) return;
+    if (e.button === 0) {
+      mapDragging = true;
+      mapDragStart = { x: e.clientX, y: e.clientY };
+      mapDragCenterStart = { lat: mapCenterLat, lon: mapCenterLon };
+      mapContainer.style.cursor = 'grabbing';
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!mapDragging) return;
+    const rect = mapContainer.getBoundingClientRect();
+    const dxPx = e.clientX - mapDragStart.x;
+    const dyPx = e.clientY - mapDragStart.y;
+
+    // Convert pixel drag to Mercator offset
+    const scale = CANVAS_SIZE / rect.width;
+    const centerPxX = lon2mercX(mapDragCenterStart.lon, mapZoom);
+    const centerPxY = lat2mercY(mapDragCenterStart.lat, mapZoom);
+    const newLon = mercX2lon(centerPxX - dxPx * scale, mapZoom);
+    const newLat = mercY2lat(centerPxY - dyPx * scale, mapZoom);
+
+    mapCenterLat = Math.max(-55, Math.min(72, newLat));
+    mapCenterLon = newLon;
+    renderMapTiles();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (mapDragging) {
+      mapDragging = false;
+      mapContainer.style.cursor = 'pointer';
+    }
+  });
+
+  // Expand/collapse
+  mapContainer.addEventListener('click', (e) => {
+    if (!mapExpanded) {
+      mapContainer.classList.remove('collapsed');
+      mapContainer.classList.add('expanded');
+      mapExpanded = true;
+      mapLabel.textContent = '▸ SCROLL TO ZOOM • DRAG TO PAN • CLICK TO SET POSITION';
+      mapCloseBtn.style.display = 'block';
+      mapCrosshair.style.display = 'block';
+      mapZoomControls.style.display = 'flex';
+      renderMapTiles();
+      const lat = parseFloat(document.getElementById('gps-lat').value);
+      const lon = parseFloat(document.getElementById('gps-lon').value);
+      if (!isNaN(lat) && !isNaN(lon)) setTimeout(() => updateMapPin(lat, lon), 350);
+      return;
+    }
+
+    // Ignore if it was a drag
+    const dx = e.clientX - mapDragStart.x;
+    const dy = e.clientY - mapDragStart.y;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return;
+
+    // Click to select location
+    const rect = mapContainer.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const coords = canvasPixelToLatLon(px, py, rect.width, rect.height);
+
+    coords.lat = Math.max(-85, Math.min(85, coords.lat));
+    coords.lon = Math.max(-180, Math.min(180, coords.lon));
+
+    mapPin.style.left = px + 'px';
+    mapPin.style.top = py + 'px';
+    mapPin.style.display = 'block';
+
+    document.getElementById('gps-lat').value = coords.lat.toFixed(4);
+    document.getElementById('gps-lon').value = coords.lon.toFixed(4);
+    mapCoordsEl.textContent = coords.lat.toFixed(4) + ', ' + coords.lon.toFixed(4);
+
+    loadSatelliteTiles(coords.lat, coords.lon);
+    document.getElementById('s-location').textContent = coords.lat.toFixed(4) + ', ' + coords.lon.toFixed(4);
+  });
+
+  // Close button
+  mapCloseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    mapContainer.classList.remove('expanded');
+    mapContainer.classList.add('collapsed');
+    mapExpanded = false;
+    mapLabel.textContent = '▸ CLICK TO SELECT LOCATION';
+    mapCloseBtn.style.display = 'none';
+    mapCrosshair.style.display = 'none';
+    mapZoomControls.style.display = 'none';
+    // Reset to world view for thumbnail
+    const savedZoom = mapZoom;
+    const savedLat = mapCenterLat;
+    const savedLon = mapCenterLon;
+    mapZoom = 2; mapCenterLat = 20; mapCenterLon = 0;
+    renderMapTiles();
+    mapZoom = savedZoom; mapCenterLat = savedLat; mapCenterLon = savedLon;
+    const lat = parseFloat(document.getElementById('gps-lat').value);
+    const lon = parseFloat(document.getElementById('gps-lon').value);
+    if (!isNaN(lat) && !isNaN(lon)) setTimeout(() => updateMapPin(lat, lon), 350);
+  });
+
+  // Mousemove crosshair + coords
+  mapContainer.addEventListener('mousemove', (e) => {
+    if (!mapExpanded || mapDragging) return;
+    const rect = mapContainer.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const coords = canvasPixelToLatLon(px, py, rect.width, rect.height);
+    mapCoordsEl.textContent = coords.lat.toFixed(4) + ', ' + coords.lon.toFixed(4);
+    mapCrosshair.style.left = (px - 50) + 'px';
+    mapCrosshair.style.top = (py - 50) + 'px';
+    mapCrosshair.style.width = '100px';
+    mapCrosshair.style.height = '100px';
+  });
+
+  // City dropdown handler — loads ground tiles AND opens map for refinement
+  document.getElementById('city-select').addEventListener('change', (e) => {
+    if (!e.target.value) return;
+    const [lat, lon] = e.target.value.split(',').map(Number);
+    const cityName = e.target.options[e.target.selectedIndex].text;
+    document.getElementById('gps-lat').value = lat.toFixed(4);
+    document.getElementById('gps-lon').value = lon.toFixed(4);
+    
+    // Load ground tiles immediately at city center
+    loadSatelliteTiles(lat, lon);
+    document.getElementById('s-location').textContent = cityName;
+    
+    // Center map on city and zoom to Z8 (metro level)
+    mapCenterLat = lat; mapCenterLon = lon;
+    mapZoom = 8;
+    
+    // Auto-expand the map picker for refinement
+    mapContainer.classList.remove('collapsed');
+    mapContainer.classList.add('expanded');
+    mapExpanded = true;
+    mapLabel.textContent = '▸ ZOOM IN & CLICK TO REFINE EXACT POSITION';
+    mapCloseBtn.style.display = 'block';
+    mapCrosshair.style.display = 'block';
+    mapZoomControls.style.display = 'flex';
+    renderMapTiles();
+    setTimeout(() => updateMapPin(lat, lon), 300);
+  });
+
+  // Set initial pin
+  setTimeout(() => updateMapPin(32.3835, -106.4784), 500);
+
+  // GPS button handler (placed after map variables are defined)
+  document.getElementById('btn-gps').addEventListener('click', () => {
+    const lat = parseFloat(document.getElementById('gps-lat').value);
+    const lon = parseFloat(document.getElementById('gps-lon').value);
+    if (isNaN(lat) || isNaN(lon)) return;
+    loadSatelliteTiles(lat, lon);
+    document.getElementById('s-location').textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
+    mapCoordsEl.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
+    mapCenterLat = lat; mapCenterLon = lon;
+    renderMapTiles();
+    setTimeout(() => updateMapPin(lat, lon), 300);
+  });
+
+  // Semi-transparent grid overlay on satellite
+  const gridLineMat = new THREE.LineBasicMaterial({ color: 0x44AAFF, transparent: true, opacity: 0.12 });
+  const gridCount = 20;
+  const gridSpread = 1000;
+  for (let i = -gridCount; i <= gridCount; i++) {
+    const pts1 = [];
+    const pts2 = [];
+    const gx = (i / gridCount) * gridSpread;
+    for (let j = 0; j <= 40; j++) {
+      const gz = ((j / 40) - 0.5) * gridSpread * 2;
+      const d1 = Math.sqrt(gx * gx + gz * gz);
+      const y1 = d1 < EARTH_VIS_RADIUS ? -EARTH_VIS_RADIUS + Math.sqrt(EARTH_VIS_RADIUS * EARTH_VIS_RADIUS - d1 * d1) : 0;
+      pts1.push(new THREE.Vector3(gx, y1 - 1, gz));
+
+      const gz2 = gx;
+      const gx2 = ((j / 40) - 0.5) * gridSpread * 2;
+      const d2 = Math.sqrt(gx2 * gx2 + gz2 * gz2);
+      const y2 = d2 < EARTH_VIS_RADIUS ? -EARTH_VIS_RADIUS + Math.sqrt(EARTH_VIS_RADIUS * EARTH_VIS_RADIUS - d2 * d2) : 0;
+      pts2.push(new THREE.Vector3(gx2, y2 - 1, gz2));
+    }
+    const g1 = new THREE.BufferGeometry().setFromPoints(pts1);
+    const g2 = new THREE.BufferGeometry().setFromPoints(pts2);
+    scene.add(new THREE.Line(g1, gridLineMat));
+    scene.add(new THREE.Line(g2, gridLineMat));
+  }
+
+  // Range rings on curved surface (1 mile increments)
+  for (let i = 1; i <= 4; i++) {
+    const ringR = CYLINDER_RADIUS * (i / 4);
+    const ringPts = [];
+    for (let a = 0; a <= 64; a++) {
+      const angle = (a / 64) * Math.PI * 2;
+      const rx = Math.cos(angle) * ringR;
+      const rz = Math.sin(angle) * ringR;
+      const rd = Math.sqrt(rx * rx + rz * rz);
+      const ry = rd < EARTH_VIS_RADIUS ? -EARTH_VIS_RADIUS + Math.sqrt(EARTH_VIS_RADIUS * EARTH_VIS_RADIUS - rd * rd) : 0;
+      ringPts.push(new THREE.Vector3(rx, ry - 0.5, rz));
+    }
+    const ringGeo = new THREE.BufferGeometry().setFromPoints(ringPts);
+    const ringMat = new THREE.LineBasicMaterial({ color: 0x00FFFF, transparent: true, opacity: 0.35 });
+    scene.add(new THREE.Line(ringGeo, ringMat));
+  }
+
+  // Protected asset at center
+  createProtectedAsset();
+
+  // Cylinder wireframe
+  rebuildCylinderWireframe();
+
+  // Create drone network
+  createDroneNetwork();
+  droneMeshes.forEach(m => m.scale.setScalar(1));
+
+  // Groups
+  signalLinesGroup = new THREE.Group();
+  scene.add(signalLinesGroup);
+  brokenLinesGroup = new THREE.Group();
+  scene.add(brokenLinesGroup);
+  trailGroup = new THREE.Group();
+  scene.add(trailGroup);
+
+  // Triangulation marker
+  const triGeo = new THREE.OctahedronGeometry(3, 0);
+  const triMat = new THREE.MeshBasicMaterial({ color: 0xF59E0B, wireframe: true });
+  triangulationMarker = new THREE.Mesh(triGeo, triMat);
+  triangulationMarker.visible = false;
+  scene.add(triangulationMarker);
+
+  // Events
+  btnStart.addEventListener('click', startSim);
+  btnReset.addEventListener('click', resetSim);
+  btnView.addEventListener('click', toggleView);
+  speedSlider.addEventListener('input', (e) => {
+    simSpeed = parseFloat(e.target.value);
+    speedLabel.textContent = simSpeed.toFixed(2) + 'x';
+  });
+  advSpeedSlider.addEventListener('input', (e) => {
+    adversaryMph = parseInt(e.target.value);
+    advSpeedLabel.textContent = adversaryMph + ' mph';
+  });
+  const droneSpeedSlider = document.getElementById('drone-speed-slider');
+  const droneSpeedLabel = document.getElementById('drone-speed-label');
+  droneSpeedSlider.addEventListener('input', (e) => {
+    droneSpeedMph = parseInt(e.target.value);
+    droneSpeedLabel.textContent = droneSpeedMph + ' mph';
+  });
+  altLowSlider.addEventListener('input', (e) => {
+    altLow = parseInt(e.target.value);
+    if (altLow >= altHigh - 100) { altLow = altHigh - 100; altLowSlider.value = altLow; }
+    altLowLabel.textContent = altLow.toLocaleString() + ' ft';
+    sAltLow.textContent = altLow.toLocaleString() + ' ft';
+    redistributeDrones();
+    rebuildCylinderWireframe();
+  });
+  altHighSlider.addEventListener('input', (e) => {
+    altHigh = parseInt(e.target.value);
+    if (altHigh <= altLow + 100) { altHigh = altLow + 100; altHighSlider.value = altHigh; }
+    altHighLabel.textContent = altHigh.toLocaleString() + ' ft';
+    sAltHigh.textContent = altHigh.toLocaleString() + ' ft';
+    redistributeDrones();
+    rebuildCylinderWireframe();
+  });
+  formationSlider.addEventListener('input', (e) => {
+    formationBlend = parseInt(e.target.value) / 100;
+    if (formationBlend < 0.2) formationLabel.textContent = 'RANDOM';
+    else if (formationBlend < 0.5) formationLabel.textContent = 'FORMING';
+    else if (formationBlend < 0.8) formationLabel.textContent = 'SPIRAL';
+    else formationLabel.textContent = 'TIGHT SPIRAL';
+  });
+  intruderCountSlider.addEventListener('input', (e) => {
+    intruderCount = parseInt(e.target.value);
+    intruderCountLabel.textContent = intruderCount;
+  });
+  baseWidthSlider.addEventListener('input', (e) => {
+    spiralBaseWidth = parseInt(e.target.value) / 100;
+    baseWidthLabel.textContent = e.target.value + '%';
+  });
+  window.addEventListener('resize', onResize);
+
+  animate();
+}
+
+function createProtectedAsset() {
+  const group = new THREE.Group();
+
+  // Base platform
+  const baseGeo = new THREE.CylinderGeometry(6, 8, 3, 8);
+  const baseMat = new THREE.MeshBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.6 });
+  group.add(new THREE.Mesh(baseGeo, baseMat));
+
+  // Pulsing ring
+  const ringGeo = new THREE.RingGeometry(9, 10, 32);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 1;
+  group.add(ring);
+
+  // Vertical beacon
+  const beaconGeo = new THREE.CylinderGeometry(0.5, 0.5, 20, 6);
+  const beaconMat = new THREE.MeshBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.2 });
+  const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+  beacon.position.y = 10;
+  group.add(beacon);
+
+  group.position.y = 2;
+  scene.add(group);
+  protectedAsset = group;
+}
+
+function rebuildCylinderWireframe() {
+  if (cylinderWireframe) scene.remove(cylinderWireframe);
+
+  const visLow = altToVisY(altLow);
+  const visHigh = altToVisY(altHigh);
+  const cylHeight = visHigh - visLow;
+  const cylGeo = new THREE.CylinderGeometry(CYLINDER_RADIUS, CYLINDER_RADIUS, cylHeight, 32, 1, true);
+  const cylMat = new THREE.MeshBasicMaterial({ color: 0x1E3A5F, wireframe: true, transparent: true, opacity: 0.06 });
+  cylinderWireframe = new THREE.Mesh(cylGeo, cylMat);
+  cylinderWireframe.position.y = visLow + cylHeight / 2;
+  scene.add(cylinderWireframe);
+}
+
+function createDroneNetwork() {
+  const droneGeo = new THREE.SphereGeometry(0.7, 6, 6);
+  const droneMat = new THREE.MeshBasicMaterial({ color: 0x3B82F6 });
+
+  for (let i = 0; i < DRONE_COUNT; i++) {
+    const mesh = new THREE.Mesh(droneGeo, droneMat.clone());
+    scene.add(mesh);
+    droneMeshes.push(mesh);
+
+    // Random orbit parameters
+    const orbitR = 10 + Math.random() * (CYLINDER_RADIUS - 15);
+    const orbitAngle = Math.random() * Math.PI * 2;
+    const orbitSpd = (0.002 + Math.random() * 0.008) * (Math.random() < 0.5 ? 1 : -1);
+    const alt = altLow + Math.random() * (altHigh - altLow);
+
+    droneOrbitRadius.push(orbitR);
+    droneOrbitAngle.push(orbitAngle);
+    droneOrbitSpeed.push(orbitSpd);
+    droneAltitude.push(alt);
+
+    const visY = altToVisY(alt);
+    mesh.position.set(
+      Math.cos(orbitAngle) * orbitR,
+      visY,
+      Math.sin(orbitAngle) * orbitR
+    );
+
+    dronePositions.push(mesh.position.clone());
+  }
+}
+
+function redistributeDrones() {
+  for (let i = 0; i < DRONE_COUNT; i++) {
+    droneAltitude[i] = altLow + Math.random() * (altHigh - altLow);
+  }
+}
+
+function createAdversary() {
+  const group = new THREE.Group();
+
+  const bodyGeo = new THREE.ConeGeometry(3.6, 12, 8);
+  const bodyMat = new THREE.MeshBasicMaterial({ color: 0xDC2626 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.rotation.x = Math.PI / 2;
+  group.add(body);
+
+  const glowGeo = new THREE.SphereGeometry(8, 8, 8);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xDC2626, transparent: true, opacity: 0.15 });
+  group.add(new THREE.Mesh(glowGeo, glowMat));
+
+  // Enter from left or right side with random spread
+  const side = Math.random() < 0.5 ? 1 : -1;
+  const entryAngle = (side === 1) ? (Math.random() * 1.2 - 0.6) : (Math.PI + Math.random() * 1.2 - 0.6);
+  const entryAlt = altLow + Math.random() * (altHigh - altLow);
+  const entryVisY = altToVisY(entryAlt);
+  const startDist = CYLINDER_RADIUS * 1.6;
+
+  group.position.set(
+    Math.cos(entryAngle) * startDist,
+    entryVisY,
+    Math.sin(entryAngle) * startDist
+  );
+
+  // Aim toward center with some offset
+  const target = new THREE.Vector3(
+    (Math.random() - 0.5) * 20,
+    entryVisY + (Math.random() - 0.5) * 30,
+    (Math.random() - 0.5) * 20
+  );
+  const dir = target.clone().sub(group.position).normalize();
+  group.lookAt(target);
+  scene.add(group);
+
+  return {
+    mesh: group,
+    dir: dir,
+    detected: false,
+    detectionTime: null,
+    interceptorLaunched: false,
+    interceptorMesh: null,
+    interceptorDroneIdx: -1,
+    neutralized: false,
+    exited: false
+  };
+}
+
+function createInterceptorMesh(startPos, targetPos) {
+  const group = new THREE.Group();
+
+  const bodyGeo = new THREE.ConeGeometry(1.2, 4, 6);
+  const bodyMat = new THREE.MeshBasicMaterial({ color: 0x8B5CF6 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.rotation.x = Math.PI / 2;
+  group.add(body);
+
+  const glowGeo = new THREE.SphereGeometry(2.5, 8, 8);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x8B5CF6, transparent: true, opacity: 0.2 });
+  group.add(new THREE.Mesh(glowGeo, glowMat));
+
+  group.position.copy(startPos);
+  group.lookAt(targetPos);
+  scene.add(group);
+  return group;
+}
+
+function startSim() {
+  if (simRunning) return;
+  
+  // Clean up any leftovers from previous run
+  adversaries.forEach(adv => {
+    if (adv.mesh) { adv.mesh.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }); scene.remove(adv.mesh); }
+    if (adv.interceptorMesh) { adv.interceptorMesh.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }); scene.remove(adv.interceptorMesh); }
+  });
+  adversaries = [];
+  clearGroup(signalLinesGroup);
+  clearGroup(brokenLinesGroup);
+  clearGroup(trailGroup);
+  triangulationMarker.visible = false;
+  droneMeshes.forEach(m => m.material.color.setHex(0x3B82F6));
+  brokenPathCount = 0;
+  simTime = 0;
+
+  simRunning = true;
+  phase = 'ingress';
+
+  firstDetectionTime = null;
+  btnStart.classList.add('active');
+  btnStart.textContent = '● RUNNING';
+
+  // Spawn all intruders with staggered entry
+  for (let i = 0; i < intruderCount; i++) {
+    const adv = createAdversary();
+    // Stagger: push start position further back for later arrivals
+    const stagger = i * 8; // visual units of delay spacing
+    adv.mesh.position.add(adv.dir.clone().multiplyScalar(-stagger));
+    adversaries.push(adv);
+  }
+  updatePhaseDisplay();
+}
+
+function clearGroup(group) {
+  while (group.children.length) {
+    const child = group.children[0];
+    group.remove(child);
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (child.material.map) child.material.map.dispose();
+      child.material.dispose();
+    }
+  }
+}
+
+function resetSim() {
+  simRunning = false;
+  simTime = 0;
+  phase = 'standby';
+  firstDetectionTime = null;
+
+  brokenPathCount = 0;
+
+  // Remove all adversaries and interceptors with full disposal
+  adversaries.forEach(adv => {
+    if (adv.mesh) {
+      adv.mesh.traverse(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      });
+      scene.remove(adv.mesh);
+    }
+    if (adv.interceptorMesh) {
+      adv.interceptorMesh.traverse(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      });
+      scene.remove(adv.interceptorMesh);
+    }
+  });
+  adversaries = [];
+
+  clearGroup(signalLinesGroup);
+  clearGroup(brokenLinesGroup);
+  clearGroup(trailGroup);
+
+  triangulationMarker.visible = false;
+  detectionAlert.style.display = 'none';
+  interceptAlert.style.display = 'none';
+
+  droneMeshes.forEach(m => m.material.color.setHex(0x3B82F6));
+
+  btnStart.classList.remove('active');
+  btnStart.textContent = '▶ LAUNCH SIM';
+
+  updateHUD();
+  updatePhaseDisplay();
+}
+
+function toggleView() {
+  viewMode = (viewMode + 1) % 3;
+  const labels = ['◉ MAP VIEW', '◉ TOP DOWN', '◉ SIDE VIEW'];
+  btnView.textContent = labels[viewMode];
+  const droneScale = (viewMode === 0) ? 1 : 2;
+  droneMeshes.forEach(m => m.scale.setScalar(droneScale));
+}
+
+function updateDroneNetwork(dt) {
+  for (let i = 0; i < DRONE_COUNT; i++) {
+    const pos = droneMeshes[i].position;
+
+    // Update orbit angle
+    droneOrbitAngle[i] += droneOrbitSpeed[i] * simSpeed * (droneSpeedMph / 120);
+
+    // Target visual Y from altitude
+    const visY = altToVisY(droneAltitude[i]);
+
+    if (formationBlend <= 0.01) {
+      // Random orbit — each drone on its own radius and speed
+      pos.x = Math.cos(droneOrbitAngle[i]) * droneOrbitRadius[i];
+      pos.z = Math.sin(droneOrbitAngle[i]) * droneOrbitRadius[i];
+      pos.y = visY;
+    } else {
+      // Twisting spiral formation: multiple spiral arms wrapping vertically
+      const spiralArms = 5; // number of spiral arms
+      const arm = i % spiralArms;
+      const idxInArm = Math.floor(i / spiralArms);
+      const totalInArm = Math.ceil(DRONE_COUNT / spiralArms);
+
+      // Progress along the arm (0 to 1 = bottom to top)
+      const t = idxInArm / totalInArm;
+
+      // Spiral parameters
+      const spiralY = altToVisY(altLow) + t * (altToVisY(altHigh) - altToVisY(altLow));
+      const spiralR = CYLINDER_RADIUS * spiralBaseWidth + t * CYLINDER_RADIUS * (0.9 - spiralBaseWidth);
+      const twistRate = 4.0; // full rotations from bottom to top
+      const armOffset = (arm / spiralArms) * Math.PI * 2;
+      const spiralAngle = armOffset + t * twistRate * Math.PI * 2;
+
+      // Slow rotation of entire formation
+      const rotOffset = simTime * 0.08;
+
+      const spiralX = Math.cos(spiralAngle + rotOffset) * spiralR;
+      const spiralZ = Math.sin(spiralAngle + rotOffset) * spiralR;
+
+      // Random positions
+      const randX = Math.cos(droneOrbitAngle[i]) * droneOrbitRadius[i];
+      const randZ = Math.sin(droneOrbitAngle[i]) * droneOrbitRadius[i];
+      const randY = visY;
+
+      // Blend
+      pos.x = randX + (spiralX - randX) * formationBlend;
+      pos.y = randY + (spiralY - randY) * formationBlend;
+      pos.z = randZ + (spiralZ - randZ) * formationBlend;
+    }
+
+    dronePositions[i].copy(pos);
+  }
+}
+
+function checkSignalObstruction() {
+  clearGroup(signalLinesGroup);
+  clearGroup(brokenLinesGroup);
+
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x10B981, transparent: true, opacity: 0.2 });
+  const brokenMat = new THREE.LineBasicMaterial({ color: 0xEF4444, transparent: true, opacity: 0.6 });
+
+  // Collect all active adversary positions
+  const activeAdvPositions = [];
+  adversaries.forEach(adv => {
+    if (!adv.neutralized && !adv.exited && adv.mesh.visible) {
+      activeAdvPositions.push(adv.mesh.position);
+    }
+  });
+
+  if (activeAdvPositions.length === 0) return {};
+
+  // Process each adversary INDEPENDENTLY — only draw paths between drones near THAT adversary
+  const perAdvBroken = new Map();
+  const allBrokenMidpoints = [];
+  let totalBroken = 0;
+  const MAX_NEARBY = 5; // nearest 5 drones only
+  const MAX_LINES_PER_ADV = 10; // 5 choose 2 = 10 max pairs
+
+  for (let ap = 0; ap < activeAdvPositions.length; ap++) {
+    const advPos = activeAdvPositions[ap];
+    
+    // Find nearest 5 drones to THIS adversary
+    const droneDists = [];
+    for (let i = 0; i < DRONE_COUNT; i++) {
+      droneDists.push({ idx: i, dist: dronePositions[i].distanceTo(advPos) });
+    }
+    droneDists.sort((a, b) => a.dist - b.dist);
+    const localDrones = droneDists.slice(0, MAX_NEARBY).map(d => d.idx);
+
+    let linesDrawn = 0;
+    let advBroken = 0;
+
+    for (let a = 0; a < localDrones.length && linesDrawn < MAX_LINES_PER_ADV; a++) {
+      for (let b = a + 1; b < localDrones.length && linesDrawn < MAX_LINES_PER_ADV; b++) {
+        const posA = dronePositions[localDrones[a]];
+        const posB = dronePositions[localDrones[b]];
+
+        const isObstructed = pointToLineDistance(advPos, posA, posB) < SIGNAL_CHECK_RADIUS * 0.5;
+
+        const points = [posA.clone(), posB.clone()];
+        const geo = new THREE.BufferGeometry().setFromPoints(points);
+
+        if (isObstructed) {
+          totalBroken++;
+          advBroken++;
+          brokenLinesGroup.add(new THREE.Line(geo, brokenMat));
+          allBrokenMidpoints.push(posA.clone().add(posB).multiplyScalar(0.5));
+        } else {
+          signalLinesGroup.add(new THREE.Line(geo, lineMat));
+        }
+        linesDrawn++;
+      }
+    }
+
+    perAdvBroken.set(ap, advBroken);
+  }
+
+  const avgNearby = Math.max(1, 50);
+  const networkRatio = (DRONE_COUNT * (DRONE_COUNT - 1) / 2) / Math.max(1, avgNearby * (avgNearby - 1) / 2);
+  brokenPathCount = Math.round(totalBroken * Math.min(networkRatio, 50));
+
+  if (allBrokenMidpoints.length > 2) {
+    const avg = new THREE.Vector3();
+    allBrokenMidpoints.forEach(p => avg.add(p));
+    avg.divideScalar(allBrokenMidpoints.length);
+    detectedPosition.copy(avg);
+    triangulationMarker.position.copy(avg);
+    triangulationMarker.visible = true;
+    triangulationMarker.rotation.y += 0.05;
+  }
+
+  return perAdvBroken;
+}
+
+function pointToLineDistance(point, lineStart, lineEnd) {
+  const line = lineEnd.clone().sub(lineStart);
+  const len = line.length();
+  if (len === 0) return point.distanceTo(lineStart);
+  const t = Math.max(0, Math.min(1, point.clone().sub(lineStart).dot(line) / (len * len)));
+  const projection = lineStart.clone().add(line.multiplyScalar(t));
+  return point.distanceTo(projection);
+}
+
+function updateAllAdversaries(dt) {
+  if (phase === 'standby') return;
+
+  let anyActive = false;
+  let activeInterceptorCount = 0;
+
+  // Move all adversaries
+  adversaries.forEach((adv, advIdx) => {
+    if (adv.neutralized || adv.exited) return;
+    anyActive = true;
+
+    // Move
+    adv.mesh.position.add(adv.dir.clone().multiplyScalar(BASE_ADVERSARY_SPEED * (adversaryMph / 90) * simSpeed));
+
+    // Silver trail
+    if (Math.floor(simTime * 20) % 2 === 0 && advIdx % Math.max(1, Math.floor(intruderCount / 25)) === 0) {
+      const trailGeo = new THREE.SphereGeometry(0.45, 4, 4);
+      const trailMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.7 });
+      const trail = new THREE.Mesh(trailGeo, trailMat);
+      trail.position.copy(adv.mesh.position);
+      trailGroup.add(trail);
+      while (trailGroup.children.length > 600) {
+        const old = trailGroup.children[0];
+        trailGroup.remove(old);
+        old.geometry.dispose();
+        old.material.dispose();
+      }
+    }
+
+    // Check if exited
+    const horizDist = Math.sqrt(adv.mesh.position.x ** 2 + adv.mesh.position.z ** 2);
+    if (horizDist > CYLINDER_RADIUS * 2.5) {
+      adv.exited = true;
+      adv.mesh.visible = false;
+    }
+  });
+
+  // Check signal obstruction for all active adversaries
+  const hasActive = adversaries.some(a => !a.neutralized && !a.exited);
+  if (hasActive) {
+    const perAdvBroken = checkSignalObstruction();
+
+    // Detect and launch interceptors
+    let activeIdx = 0;
+    adversaries.forEach((adv) => {
+      if (adv.neutralized || adv.exited) return;
+
+      const horizDist = Math.sqrt(adv.mesh.position.x ** 2 + adv.mesh.position.z ** 2);
+      const visY = adv.mesh.position.y;
+      const isInside = horizDist < CYLINDER_RADIUS && visY >= altToVisY(altLow) - 5 && visY <= altToVisY(altHigh) + 5;
+
+      if (isInside && !adv.detected) {
+        const broken = perAdvBroken.get(activeIdx) || 0;
+        if (broken >= DETECTION_THRESHOLD) {
+          adv.detected = true;
+          adv.detectionTime = simTime;
+
+          if (!firstDetectionTime) {
+            firstDetectionTime = simTime;
+            detectionAlert.style.display = 'block';
+            setTimeout(() => { detectionAlert.style.display = 'none'; }, 1500 / simSpeed);
+          }
+        }
+      }
+
+      // Launch interceptor once detected
+      if (adv.detected && !adv.interceptorLaunched) {
+        adv.interceptorLaunched = true;
+
+        let minDist = Infinity;
+        let bestIdx = 0;
+        for (let i = 0; i < DRONE_COUNT; i++) {
+          const alreadyUsed = adversaries.some(a => a.interceptorDroneIdx === i);
+          if (alreadyUsed) continue;
+          const d = dronePositions[i].distanceTo(adv.mesh.position);
+          if (d < minDist) { minDist = d; bestIdx = i; }
+        }
+
+        adv.interceptorDroneIdx = bestIdx;
+        adv.interceptorMesh = createInterceptorMesh(dronePositions[bestIdx].clone(), adv.mesh.position);
+        droneMeshes[bestIdx].material.color.setHex(0x8B5CF6);
+      }
+
+      // Update interceptor pursuit
+      if (adv.interceptorMesh && !adv.neutralized) {
+        activeInterceptorCount++;
+        const dir = adv.mesh.position.clone().sub(adv.interceptorMesh.position).normalize();
+        const iSpeed = BASE_ADVERSARY_SPEED * (droneSpeedMph / 90);
+        adv.interceptorMesh.position.add(dir.multiplyScalar(iSpeed * simSpeed));
+        adv.interceptorMesh.lookAt(adv.mesh.position);
+
+        if (adv.interceptorMesh.position.distanceTo(adv.mesh.position) < 15) {
+          adv.neutralized = true;
+
+          // Hide immediately
+          adv.mesh.visible = false;
+          adv.interceptorMesh.visible = false;
+
+          // Big explosion
+          for (let i = 0; i < 30; i++) {
+            const size = 1.5 + Math.random() * 3;
+            const pGeo = new THREE.SphereGeometry(size, 6, 6);
+            const colors = [0xFF4444, 0xFF8800, 0xFFCC00, 0xFF2200, 0xFFFFFF];
+            const pMat = new THREE.MeshBasicMaterial({
+              color: colors[Math.floor(Math.random() * colors.length)],
+              transparent: true, opacity: 0.9
+            });
+            const p = new THREE.Mesh(pGeo, pMat);
+            p.position.copy(adv.mesh.position);
+            p.userData.vel = new THREE.Vector3(
+              (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8
+            );
+            p.userData.life = 1.0;
+            trailGroup.add(p);
+          }
+        }
+      }
+
+      activeIdx++;
+    });
+  }
+
+  // Update phase
+  const allDone = adversaries.every(a => a.neutralized || a.exited);
+  const anyDetected = adversaries.some(a => a.detected && !a.neutralized && !a.exited);
+  const anyIntercepting = adversaries.some(a => a.interceptorLaunched && !a.neutralized && !a.exited);
+
+  if (allDone && adversaries.length > 0) {
+    phase = 'neutralized';
+    interceptAlert.style.display = 'block';
+    updatePhaseDisplay();
+    setTimeout(() => {
+      simRunning = false;
+      btnStart.classList.remove('active');
+      btnStart.textContent = '▶ LAUNCH SIM';
+    }, 3000);
+  } else if (anyIntercepting) {
+    phase = 'intercept';
+  } else if (anyDetected) {
+    phase = 'tracking';
+  } else if (anyActive) {
+    phase = 'ingress';
+  }
+
+  updatePhaseDisplay();
+}
+
+function updateCamera() {
+  const midY = (altToVisY(altLow) + altToVisY(altHigh)) / 2;
+  const cylH = altToVisY(altHigh) - altToVisY(altLow);
+  if (viewMode === 0) {
+    camera.position.set(0, midY + cylH * 0.2, Math.max(900, cylH * 2.2));
+    camera.lookAt(-80, midY, 0);
+  } else if (viewMode === 1) {
+    camera.position.set(0, 1400, 0);
+    camera.lookAt(-80, 0, 0);
+  } else {
+    camera.position.set(Math.max(1300, cylH * 3), midY, 0);
+    camera.lookAt(-80, midY, 0);
+  }
+}
+
+function updateExplosionParticles() {
+  for (let i = trailGroup.children.length - 1; i >= 0; i--) {
+    const p = trailGroup.children[i];
+    if (p.userData.vel) {
+      p.position.add(p.userData.vel);
+      p.userData.vel.multiplyScalar(0.92);
+      p.userData.life -= 0.012;
+      if (p.material) p.material.opacity = Math.max(0, p.userData.life);
+      // Shrink as they fade
+      const s = Math.max(0.1, p.userData.life);
+      p.scale.setScalar(s);
+      if (p.userData.life <= 0) { trailGroup.remove(p); p.geometry.dispose(); p.material.dispose(); }
+    }
+  }
+}
+
+function updateHUD() {
+  const mins = Math.floor(simTime / 60);
+  const secs = (simTime % 60).toFixed(1).padStart(4, '0');
+  simTimeEl.textContent = `${String(mins).padStart(2, '0')}:${secs}`;
+
+  sBroken.textContent = brokenPathCount.toLocaleString();
+
+  const activeCount = adversaries.filter(a => !a.neutralized && !a.exited).length;
+  const detectedCount = adversaries.filter(a => a.detected).length;
+  const interceptingCount = adversaries.filter(a => a.interceptorLaunched && !a.neutralized && !a.exited).length;
+
+  if (phase !== 'standby') {
+    sSpeed.textContent = adversaryMph + ' mph';
+    const neutralizedCount = adversaries.filter(a => a.neutralized).length;
+    document.getElementById('s-intruders').textContent = activeCount + ' / ' + intruderCount;
+    sTti.textContent = neutralizedCount.toString();
+    sIntercept.textContent = interceptingCount.toString();
+    sIntercept.className = interceptingCount > 0 ? 'stat-value amber' : 'stat-value green';
+
+    // Show first active adversary altitude
+    const firstActive = adversaries.find(a => !a.neutralized && !a.exited);
+    if (firstActive) {
+      const advAltFt = visYToAlt(firstActive.mesh.position.y);
+      sAdvAlt.textContent = Math.round(advAltFt).toLocaleString() + ' ft';
+    }
+  }
+
+  if (phase === 'standby') {
+    sDetect.textContent = 'CLEAR'; sDetect.className = 'stat-value green';
+    sSpeed.textContent = '— mph'; sAdvAlt.textContent = '—';
+    sTtd.textContent = '—'; sTti.textContent = '0';
+    sIntercept.textContent = '0'; sIntercept.className = 'stat-value';
+    sBroken.textContent = '0';
+    document.getElementById('s-intruders').textContent = '0 / 0';
+  } else if (phase === 'ingress') {
+    sDetect.textContent = 'SCANNING'; sDetect.className = 'stat-value blue';
+  } else if (phase === 'detected' || phase === 'tracking') {
+    sDetect.textContent = detectedCount + ' DETECTED'; sDetect.className = 'stat-value red';
+    if (firstDetectionTime !== null) sTtd.textContent = firstDetectionTime.toFixed(1) + 's';
+  } else if (phase === 'intercept') {
+    sDetect.textContent = detectedCount + ' DETECTED'; sDetect.className = 'stat-value amber';
+    if (firstDetectionTime !== null) sTtd.textContent = firstDetectionTime.toFixed(1) + 's';
+  } else if (phase === 'neutralized') {
+    sDetect.textContent = 'ALL CLEAR'; sDetect.className = 'stat-value green';
+    if (firstDetectionTime !== null) sTtd.textContent = firstDetectionTime.toFixed(1) + 's';
+    sTti.textContent = adversaries.filter(a => a.neutralized).length.toString();
+    sIntercept.textContent = '0'; sIntercept.className = 'stat-value green';
+  }
+}
+
+function updatePhaseDisplay() {
+  const colors = {
+    standby: '#3B82F6', ingress: '#F59E0B', detected: '#EF4444',
+    tracking: '#EF4444', intercept: '#8B5CF6', neutralized: '#10B981'
+  };
+  const names = {
+    standby: 'STANDBY', ingress: 'ADVERSARY INGRESS', detected: 'INTRUSION DETECTED',
+    tracking: 'TRACKING TARGET', intercept: 'INTERCEPTOR DEPLOYED', neutralized: 'TARGET NEUTRALIZED'
+  };
+  phaseNameEl.textContent = names[phase] || phase.toUpperCase();
+  phaseNameEl.style.color = colors[phase] || '#3B82F6';
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+
+  if (simRunning) {
+    simTime += dt * simSpeed;
+    updateDroneNetwork(dt);
+    updateAllAdversaries(dt);
+    updateExplosionParticles();
+  } else {
+    updateDroneNetwork(dt * 0.3);
+  }
+
+  // Pulse protected asset
+  if (protectedAsset) {
+    const pulse = 0.3 + Math.sin(Date.now() * 0.003) * 0.15;
+    protectedAsset.children[1].material.opacity = pulse;
+  }
+
+  updateCamera();
+  updateHUD();
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+init();
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"version":"2024.11.0","token":"70ef5639dc8048deb2560fd4f0efbce7","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
